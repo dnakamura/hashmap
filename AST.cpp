@@ -316,7 +316,7 @@ Value IndexExpr::Eval() {
 	}
 	//TODO need to create ref to object
 	Value index = index_->Eval();
-	if (index.IsInt()) {
+	if (index.IsNill()) {
 		throw EvalError("Attempting to use nil as an index");
 	}
 
