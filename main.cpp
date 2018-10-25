@@ -17,11 +17,17 @@ int main() {
       std::free(txt);
       break;
     }
-    auto ast = Parse({txt, std::strlen(txt)});
+    try {
+      auto ast = Parse({txt, std::strlen(txt)});
 
-    Value result = ast->Eval();
-    std::cout << result << std::endl;
-    linenoiseHistoryAdd(txt);
+      Value result = ast->Eval();
+      std::cout << result << std::endl;
+      linenoiseHistoryAdd(txt);
+    } catch (ParseError e) {
+      std::cout << "parsing failed: " << e.what() << std::endl;
+    } catch (EvalError e) {
+      std::cout << "evaluation failed: " << e.what() << std::endl;
+    }
     std::free(txt);
   }
 
