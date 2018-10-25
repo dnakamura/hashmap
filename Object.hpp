@@ -1,73 +1,57 @@
 #pragma once
 
-#include "Hash.hpp"
+#include <cstring>
+#include <functional>
 #include <string>
 #include <string_view>
-#include <functional>
-#include <cstring>
+#include "Hash.hpp"
 
 class Object {
-	static HashValue objectId;
-public:
-	enum class Kind : std::uint8_t {
-		HASHTABLE,
-		REF_ARRAY,
-		STRING
-	};
+  static HashValue objectId;
 
-	 constexpr HashValue Hash() const {
-		 return hash_;
-	}
+ public:
+  enum class Kind : std::uint8_t { HASHTABLE, REF_ARRAY, STRING };
 
-	constexpr Kind kind() const { return static_cast<Kind>(header_ & 0xFF); }
-protected:
-	Object(Kind kind)
-		: header_(static_cast<std::uint64_t>(kind)),
-		hash_(objectId++)
-	{}
-	Object(Kind kind, std::uint64_t hash)
-		: header_(static_cast<std::uint64_t>(kind)),
-		hash_(hash) {}
+  constexpr HashValue Hash() const { return hash_; }
 
-#if 0
-	// note this is a hack for lazy-hashing on strings
-	void setHash(std::uint64_t hash) {
-		hash_ = hash;
-	}
-#endif
+  constexpr Kind kind() const { return static_cast<Kind>(header_ & 0xFF); }
 
-private:
-	std::uint64_t header_;
-	std::uint64_t hash_;
+ protected:
+  Object(Kind kind)
+      : header_(static_cast<std::uint64_t>(kind)), hash_(objectId++) {}
+  Object(Kind kind, std::uint64_t hash)
+      : header_(static_cast<std::uint64_t>(kind)), hash_(hash) {}
+
+ private:
+  std::uint64_t header_;
+  std::uint64_t hash_;
 };
-
 
 class StringObject : public Object {
-	StringObject(std::size_t size, std::size_t hash): Object(Kind::STRING, hash), size_(size) {}
-public:
-	static StringObject* Allocate(std::string_view str) {
-		std::size_t size = sizeof(StringObject) + str.size();
-		//TODO this all needs to change when dealing with a gc
-		StringObject *ptr = static_cast<StringObject*>(std::malloc(size));
-		std::size_t hash = std::hash<std::string_view>{}(str);
+  StringObject(std::size_t size, std::size_t hash)
+      : Object(Kind::STRING, hash), size_(size) {}
 
-		new (ptr) StringObject(str.size(), hash);
-		std::uint8_t *data = reinterpret_cast<std::uint8_t*>(ptr) + sizeof(StringObject);
+ public:
+  static StringObject* Allocate(std::string_view str) {
+    std::size_t size = sizeof(StringObject) + str.size();
+    // TODO this all needs to change when dealing with a gc
+    StringObject* ptr = static_cast<StringObject*>(std::malloc(size));
+    std::size_t hash = std::hash<std::string_view>{}(str);
 
-		std::memcpy(data, &*str.cbegin(), str.size());
-		return ptr;
+    new (ptr) StringObject(str.size(), hash);
+    std::uint8_t* data =
+        reinterpret_cast<std::uint8_t*>(ptr) + sizeof(StringObject);
 
-	}
+    std::memcpy(data, &*str.cbegin(), str.size());
+    return ptr;
+  }
 
-	std::string ToString() {
-		using namespace std;
-		return ""s;
-	}
-	std::string_view ToStringView() {
-		const char*  strData = reinterpret_cast<char*>(reinterpret_cast<uint8_t*>(this) + sizeof(StringObject));
-		return { strData, size_ };
-	}
-private:
-	const std::size_t size_;
+  std::string_view ToStringView() {
+    const char* strData = reinterpret_cast<char*>(
+        reinterpret_cast<uint8_t*>(this) + sizeof(StringObject));
+    return {strData, size_};
+  }
+
+ private:
+  const std::size_t size_;
 };
-
