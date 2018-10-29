@@ -6,6 +6,12 @@
 #include <string_view>
 #include "Hash.hpp"
 
+//#include "Environ.hpp"
+
+constexpr size_t align2(size_t size, size_t alignment) {
+  return (size + alignment - 1) & ~(alignment - 1);
+}
+
 class Object {
   static HashValue objectId;
 
@@ -14,44 +20,40 @@ class Object {
 
   constexpr HashValue Hash() const { return hash_; }
 
-  constexpr Kind kind() const { return static_cast<Kind>(header_ & 0xFF); }
+  constexpr Kind kind() const {
+    return static_cast<Kind>((header_ >> 24) & 0xFF);
+  }
 
  protected:
   Object(Kind kind)
-      : header_(static_cast<std::uint64_t>(kind)), hash_(objectId++) {}
+      : header_(static_cast<std::uint64_t>(kind) << 24), hash_(objectId++) {}
   Object(Kind kind, std::uint64_t hash)
-      : header_(static_cast<std::uint64_t>(kind)), hash_(hash) {}
+      : header_(static_cast<std::uint64_t>(kind) << 24), hash_(hash) {}
 
  private:
   std::uint64_t header_;
   std::uint64_t hash_;
 };
 
+class StringObject;
+StringObject* AllocateString(std::string_view str);
 class StringObject : public Object {
   StringObject(std::size_t size, std::size_t hash)
       : Object(Kind::STRING, hash), size_(size) {}
 
  public:
-  static StringObject* Allocate(std::string_view str) {
-    std::size_t size = sizeof(StringObject) + str.size();
-    // TODO this all needs to change when dealing with a gc
-    StringObject* ptr = static_cast<StringObject*>(std::malloc(size));
-    std::size_t hash = std::hash<std::string_view>{}(str);
-
-    new (ptr) StringObject(str.size(), hash);
-    std::uint8_t* data =
-        reinterpret_cast<std::uint8_t*>(ptr) + sizeof(StringObject);
-
-    std::memcpy(data, &*str.cbegin(), str.size());
-    return ptr;
-  }
-
+  static inline StringObject* Allocate(std::string_view str);
   std::string_view ToStringView() {
     const char* strData = reinterpret_cast<char*>(
         reinterpret_cast<uint8_t*>(this) + sizeof(StringObject));
     return {strData, size_};
   }
+  constexpr size_t size() const {
+    return align2(sizeof(StringObject) + size_, 16);
+  }
 
  private:
   const std::size_t size_;
 };
+
+std::size_t Size(const Object* obj);

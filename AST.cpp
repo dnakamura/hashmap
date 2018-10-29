@@ -1,5 +1,7 @@
 
 #include "AST.hpp"
+#include <omrgc.h>
+#include <OMR/GC/StackRoot.hpp>
 #include <cassert>
 #include <cctype>
 #include <charconv>
@@ -10,8 +12,9 @@
 #include <utility>
 #include "Environ.hpp"
 #include "Object.hpp"
-
+#include "ObjectAllocator.hpp"
 using namespace ast;
+using OMR::GC::StackRoot;
 namespace {
 
 class ParseBuffer {
@@ -194,9 +197,15 @@ Value VariableExpr::Eval() {
   using namespace std;
   // We handle the special case of variable named "newtable"
   if (getRaw() == "newtable"sv) {
-    HashTable *newTable = new HashTable();
+    StackRoot<HashTable> newTable(*ctx);
+    newTable =
+        OMR::GC::allocate<HashTable>(*ctx, align(sizeof(HashTable), 16),
+                                     [](HashTable *p) { new (p) HashTable(); });
     newTable->Initialize(HashTable::DEFAULT_SIZE);
-    return newTable;
+    return newTable.get();
+  } else if (getRaw() == "forcegc"sv) {
+    OMR_GC_SystemCollect(ctx->vmContext(), 0);
+    return nullptr;
   }
   Value key = StringObject::Allocate(getRaw());
   Value *value = globalVariables.Get(key);
@@ -235,9 +244,19 @@ Value AssignmentExpr::Eval() {
     throw EvalError("Must assign to variable or into table");
   }
 
+  bool indexIsObject = idx.IsObject();
+  StackRoot<Object> root_object(*ctx);
+  if (indexIsObject) {
+    root_object = idx.AsObject();
+  }
+
   assert(tbl != nullptr);
   assert(tbl->kind() == Object::Kind::HASHTABLE);
   Value value = rhs_->Eval();
+
+  if (indexIsObject) {
+    idx = Value(root_object.get());
+  }
   tbl->Set(idx, value);
 
   // Dont return the value, just to quiet the output from repl

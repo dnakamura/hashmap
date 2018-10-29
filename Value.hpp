@@ -1,20 +1,22 @@
 #pragma once
 #include <cassert>
-#include <cassert>
 #include <cstddef>
 #include <iostream>
 #include "Hash.hpp"
 
 #include "Object.hpp"
 
+namespace OMRClient {
+namespace GC {
+class ObjectScanner;
+}
+}  // namespace OMRClient
+
 class Value {
+  friend class OMRClient::GC::ObjectScanner;
+
  public:
-  enum class Kind {
-    NILL = 0,
-    OBJECT,
-    INTEGER,
-    VALUE_REF,  // TODO This is a super hack
-  };
+  enum class Kind { NILL = 0, OBJECT, INTEGER };
 
   constexpr Value() : kind_(Kind::NILL), i_(0) {}
   constexpr Value(Object* obj) : kind_(Kind::OBJECT), object_(obj) {}
@@ -48,19 +50,18 @@ class Value {
       case Kind::NILL:
         return 0;
     }
-    assert(false);
+    // assert(false);
     return 0;
   }
 
   constexpr bool operator==(const Value& other) const;
 
  private:
+  Kind kind_;
   union {
     Object* object_;
     std::int64_t i_;
   };
-
-  Kind kind_;
 
   friend std::ostream& operator<<(std::ostream& os, const Value& v);
 };

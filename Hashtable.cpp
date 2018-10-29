@@ -3,31 +3,48 @@
 //
 
 #include "HashTable.hpp"
+#include "ObjectAllocator.hpp"
 #include <iomanip>
 #include <iostream>
+#include <OMR/GC/StackRoot.hpp>
 HashValue Object::objectId = 0;
 
 std::size_t Size(const Object* obj) {
   switch (obj->kind()) {
     case Object::Kind::HASHTABLE:
-      return sizeof(HashTable);
+      return align(sizeof(HashTable),16);
     case Object::Kind::REF_ARRAY:
-      return static_cast<const RefArray*>(obj)->size();
+      return align(static_cast<const RefArray*>(obj)->size(),16);
+    case Object::Kind::STRING:
+      return align(static_cast<const StringObject*>(obj)->size(),16);
   }
   assert(false);
 
-  return 1;
+  return 16;
 }
+void HashTable::Initialize(std::size_t sz) {
+  // Note: we throw away the old backing array so this is wildly unsafe'=
+  OMR::GC::StackRoot<HashTable> self(*ctx, this);
+  RefArray * temp = RefArray::Allocate(sz);
+  self->backingArray_ = temp;
+  self->size_ = sz;
+  self->remainingCapacity_ = sz;  // TODO: maybe sz * 0.75?
+}
+
 
 void HashTable::Grow(std::size_t newSize) {
   assert(newSize > size_);
   const std::size_t oldSize = size_;
-  RefArray* old = backingArray_;
+  OMR::GC::StackRoot<RefArray> old(*ctx);
+  old = backingArray_;
+  
+  OMR::GC::StackRoot<HashTable> self(*ctx);
+  self = this;
   Initialize(newSize);
 
   for (std::size_t i = 0; i < oldSize; ++i) {
     if (!old->entries_[i].key.IsNill()) {
-      Set(old->entries_[i].key, old->entries_[i].value);
+      self->Set(old->entries_[i].key, old->entries_[i].value);
     }
   }
 }

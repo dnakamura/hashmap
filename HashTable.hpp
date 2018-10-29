@@ -1,5 +1,5 @@
-#pragma once
-
+#ifndef HASHTABLE_HPP
+#define HASHTABLE_HPP
 #include <cassert>
 #include <cstdint>
 #include <iostream>
@@ -7,6 +7,9 @@
 #include "Object.hpp"
 #include "Value.hpp"
 
+
+
+int main();
 class RefArray;
 class HashTable : public Object {
  public:
@@ -14,7 +17,7 @@ class HashTable : public Object {
   inline HashTable();
 
   // TODO should maybe be protected/private?
-  inline void Initialize(std::size_t sz);
+  void Initialize(std::size_t sz);
   struct Entry;
   // struct Key;
 
@@ -32,6 +35,8 @@ class HashTable : public Object {
   std::size_t nextFreeSlot_;
   RefArray* backingArray_ = nullptr;
   friend std::ostream& operator<<(std::ostream& os, const Value& v);
+  friend class OMRClient::GC::ObjectScanner;
+  friend int main();
 };
 
 struct HashTable::Entry {
@@ -54,12 +59,7 @@ class RefArray : public Object {
   RefArray& operator=(const RefArray&) = delete;
 
  public:
-  static RefArray* Allocate(std::size_t sz) {
-    RefArray* arr = static_cast<RefArray*>(
-        calloc(1, sizeof(RefArray) + sizeof(HashTable::Entry) * sz));
-    new (arr) RefArray(sz);
-    return arr;
-  }
+  inline static RefArray* Allocate(std::size_t sz);
 
   size_t FindEmptyCell(size_t start);
   void Relocate(size_t from, size_t to);
@@ -67,16 +67,16 @@ class RefArray : public Object {
   constexpr size_t size() const {
     return sizeof(RefArray) + sizeof(HashTable::Entry) * size_;
   }
+  constexpr size_t count() const { return size_;}
   // private:
   std::size_t size_;
   HashTable::Entry entries_[];
+  friend class OMRClient::GC::ObjectScanner;
+  
 };
 
 void DumpHashTable(std::ostream& os, RefArray& refarr);
 
-void HashTable::Initialize(std::size_t sz) {
-  // Note: we throw away the old backing array so this is wildly unsafe
-  backingArray_ = RefArray::Allocate(sz);
-  size_ = sz;
-  remainingCapacity_ = sz;  // TODO: maybe sz * 0.75?
-}
+
+
+#endif
